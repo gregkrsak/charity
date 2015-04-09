@@ -1,0 +1,112 @@
+#!/usr/bin/env ruby
+#
+# Charity
+#
+# Donates a remotely-executed command to the server of your choice.
+#
+# Copyright 2015 Greg M. Krsak (greg.krsak@gmail.com)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Ensure we can access gems
+require 'rubygems'
+# State machine for the main application
+require 'gk-application'
+# Command-line option parser
+require 'optparse'
+# Used by the remote command runner
+require 'net/ssh'
+
+
+module Charity
+
+# This class runs commands on a remote system. It is a wrapper for a lower-level
+# utility that actually does the work.
+class RemoteCommandRunner
+  attr_accessor :connection
+  attr_reader :host
+
+  # Process credentials for the remote system
+  def initialize(host, user, password)
+    @host = host
+    @connection = Net::SSH.start(@host, user, :password => password)
+  end
+
+  # Run a remote command on the current connection
+  def run(command)
+    result = connection.exec!(command)
+    puts "[BEGIN #{@host}: #{command}]"
+    puts "  #{result}"
+    puts "[END #{@host}: #{command}]"
+  end
+  # End of class RemoteCommandRunner
+end
+
+
+# The main application instance
+charity = GK::Application.new
+# Command-line options
+options = {}
+# An instance of the remote command runner
+runner = {}
+
+# STARTING
+charity.on_starting = Proc.new do
+  puts 'Welcome to Charity.'
+  # Parse command-line options
+  parser = OptionParser.new do |opt|
+    opt.banner = 'Command donations are being accepted. Would you consider a simple gift of "Hello, World"?..'
+    opt.on('-d', '--donate COMMAND', 'The system command you would like to donate.') do |command|
+      options[:command] = command
+    end
+    opt.on('-t', '--to HOSTNAME', 'Hostname of the system you will be donating to.') do |host|
+      options[:host] = host
+    end
+    opt.on('-f', '--from USERNAME', 'Username of an account with access to perform the donation.') do |user|
+      options[:user] = user
+    end
+    opt.on('-p', '--password PASSWORD', 'Password of the user performing the donation.') do |password|
+      options[:password] = password
+    end
+  end
+  parser.parse!
+  # Create an instance of the remote command runner
+  runner = Charity::RemoteCommandRunner.new(options[:host], options[:user], options[:password])
+  charity.state = :running
+end
+
+# RUNNING
+charity.on_running = Proc.new do
+  puts 'Charity: Running...'
+  runner.run(options[:command])
+  charity.state = :stopping
+end
+
+# STOPPING
+charity.on_stopping = Proc.new do
+  puts 'Charity: Stopping...'
+  charity.state = :stopped
+end
+
+# STOPPED
+charity.on_stopped = Proc.new do
+  puts 'Charity: Stopped.'
+end
+
+
+charity.state = :starting
+
+
+# End of module Charity
+end
