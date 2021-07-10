@@ -1,5 +1,10 @@
 Charity
 =======
+
+
+[![Ruby](https://img.shields.io/badge/language-ruby-blue.svg)](https://github.com/gregkrsak/charity/blob/master/charity)
+
+
 I wrote this while I was bored, as a way to play with my gk-application gem. It opens an SSH connection, with the provided credentials, and runs a command on the server you specify.
 
 ```bash
